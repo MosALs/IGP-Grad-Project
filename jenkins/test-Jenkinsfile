@@ -3,6 +3,11 @@ pipeline {
         label 'jenkins-slave-1' 
     }
     
+    tools {
+        maven 'Maven-3.6.3'
+        jdk 'OpenJDK-17'
+    }
+
     environment {
         MAVEN_OPTS = '-Xmx256m -Xms128m'
         JOB_NAME = 'IGP-Test-Job'

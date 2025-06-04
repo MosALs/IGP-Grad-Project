@@ -4,6 +4,7 @@ pipeline {
     environment {
         BUILD_TIMESTAMP = "${new Date().format('yyyy-MM-dd-HH-mm-ss')}"
         PROJECT_NAME = "IGP Grad Project (3 Classes + 1 Test)"
+	REPO_URL = "https://github.com/MosALs/IGP-Grad-Project.git"
     }
     
     options {
