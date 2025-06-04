@@ -1,0 +1,73 @@
+pipeline {
+    agent { 
+        label 'jenkins-slave-1' 
+    }
+    
+    environment {
+        MAVEN_OPTS = '-Xmx256m -Xms128m'
+        JOB_NAME = 'IGP-Test-Job'
+    }
+    
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        timeout(time: 10, unit: 'MINUTES')
+    }
+    
+    stages {
+        stage('Code Checkout') {
+            steps {
+                script {
+                    echo "🧪 Starting testing of IGP project (1 test class)"
+                    echo "📥 Checking out code..."
+                    git 'https://github.com/MosALs/IGP-Project-may31.git'
+                    
+                    echo "🔍 Looking for test files:"
+                    sh 'find src -name "*Test*.java" || echo "No test files found"'
+                    sh 'ls -la src/test/java/ || echo "No test directory"'
+                }
+            }
+        }
+        
+        stage('Unit Test') {
+            steps {
+                script {
+                    echo "🧪 Running unit tests (1 test class expected)..."
+                    sh 'mvn test'
+                    
+                    echo "✅ Testing completed!"
+                    echo "📊 Test results:"
+                    sh 'ls -la target/surefire-reports/ || echo "No test reports"'
+                    
+                    // Show test summary if available
+                    sh '''
+                        if [ -f target/surefire-reports/TEST-*.xml ]; then
+                            echo "📈 Test summary:"
+                            grep -E "tests=|failures=|errors=" target/surefire-reports/TEST-*.xml || echo "Could not parse test results"
+                        fi
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            // Publish test results if they exist
+            script {
+                if (fileExists('target/surefire-reports/TEST-*.xml')) {
+                    publishTestResults testResultsPattern: 'target/surefire-reports/TEST-*.xml'
+                }
+            }
+            archiveArtifacts artifacts: 'target/surefire-reports/**/*', allowEmptyArchive: true
+        }
+        success {
+            echo "🎉 Successfully tested IGP project!"
+        }
+        failure {
+            echo "❌ Tests failed!"
+        }
+        cleanup {
+            cleanWs()
+        }
+    }
+}

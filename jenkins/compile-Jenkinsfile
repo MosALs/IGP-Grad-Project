@@ -1,0 +1,64 @@
+pipeline {
+    agent { 
+        label 'jenkins-slave-1' 
+    }
+    
+    environment {
+        MAVEN_OPTS = '-Xmx256m -Xms128m'
+        JOB_NAME = 'IGP-Compile-Job'
+    }
+    
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        timeout(time: 10, unit: 'MINUTES')
+    }
+    
+    stages {
+        stage('Code Checkout') {
+            steps {
+                script {
+                    echo "🔨 Starting compilation of IGP project (3 classes)"
+                    echo "📥 Checking out code..."
+                    git 'https://github.com/MosALs/IGP-Project-may31.git'
+                    
+                    echo "📂 Project structure:"
+                    sh 'find src -name "*.java" || echo "Java files:"'
+                    sh 'ls -la src/main/java/ || echo "No main java directory"'
+                }
+            }
+        }
+        
+        stage('Code Compile') {
+            steps {
+                script {
+                    echo "🔨 Compiling 3 Java classes..."
+                    sh 'mvn compile'
+                    
+                    echo "✅ Compilation completed!"
+                    echo "📁 Compiled classes:"
+                    sh 'find target/classes -name "*.class" || echo "No compiled classes found"'
+                    
+                    // Count compiled classes (expecting 3)
+                    def classCount = sh(
+                        script: 'find target/classes -name "*.class" | wc -l',
+                        returnStdout: true
+                    ).trim()
+                    echo "📊 Compiled ${classCount} classes (expected: 3)"
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "🎉 Successfully compiled IGP project!"
+            archiveArtifacts artifacts: 'target/classes/**/*', allowEmptyArchive: true
+        }
+        failure {
+            echo "❌ Compilation failed!"
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
