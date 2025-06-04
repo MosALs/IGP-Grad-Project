@@ -19,7 +19,7 @@ pipeline {
                 script {
                     echo "📦 Starting packaging of IGP project"
                     echo "📥 Checking out code..."
-                    git 'https://github.com/MosALs/IGP-Project-may31.git'
+                    git 'https://github.com/MosALs/IGP-Grad-Project.git'
                 }
             }
         }

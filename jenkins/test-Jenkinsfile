@@ -19,7 +19,7 @@ pipeline {
                 script {
                     echo "🧪 Starting testing of IGP project (1 test class)"
                     echo "📥 Checking out code..."
-                    git 'https://github.com/MosALs/IGP-Project-may31.git'
+                    git 'https://github.com/MosALs/IGP-Grad-Project.git'
                     
                     echo "🔍 Looking for test files:"
                     sh 'find src -name "*Test*.java" || echo "No test files found"'

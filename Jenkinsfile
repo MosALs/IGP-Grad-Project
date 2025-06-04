@@ -22,7 +22,7 @@ pipeline {
 🚀 ==========================================
 📅 Build: #${BUILD_NUMBER} 
 ⏰ Time: ${BUILD_TIMESTAMP}
-📂 Repo: https://github.com/MosALs/IGP-Project-may31.git
+📂 Repo: https://github.com/MosALs/IGP-Grad-Project.git
 
 📋 Plan:
 1. 🔨 Compile (3 Java classes) → Slave

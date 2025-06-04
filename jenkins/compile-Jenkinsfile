@@ -19,7 +19,7 @@ pipeline {
                 script {
                     echo "🔨 Starting compilation of IGP project (3 classes)"
                     echo "📥 Checking out code..."
-                    git 'https://github.com/MosALs/IGP-Project-may31.git'
+                    git 'https://github.com/MosALs/IGP-Grad-Project.git'
                     
                     echo "📂 Project structure:"
                     sh 'find src -name "*.java" || echo "Java files:"'
