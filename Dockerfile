@@ -1,4 +1,4 @@
-FROM tomcat:9.0-jre8
+FROM tomcat:9.0-jre17
 
 LABEL maintainer="Mostafa Alsabagh"
 LABEL description="IGP Graduation Project - Containerized Web Application"
