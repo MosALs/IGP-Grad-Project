@@ -1,0 +1,89 @@
+pipeline {
+    agent {
+        label 'master'
+    }
+
+    tools {
+        maven 'Maven-3.6.3'
+        jdk 'OpenJDK-17'
+    }
+        
+    environment {
+        MAVEN_OPTS = '-Xmx256m -Xms128m'
+        JOB_NAME = 'IGP-Package-Job'
+    }
+    
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        timeout(time: 10, unit: 'MINUTES')
+    }
+    
+    stages {
+        stage('Code Checkout') {
+            steps {
+                script {
+                    echo "📦 Starting packaging of IGP project"
+                    echo "📥 Checking out code..."
+                    git 'https://github.com/MosALs/IGP-Grad-Project.git'
+                }
+            }
+        }
+        
+        stage('Code Packaging') {
+            steps {
+                script {
+                    echo "📦 Creating WAR package from 3 classes..."
+                    
+                    // Create package (skip tests since they ran in previous job)
+                    sh 'mvn package -DskipTests'
+                    
+                    echo "✅ Packaging completed!"
+                    echo "📁 Package created:"
+                    sh 'ls -lh target/*.war || echo "No WAR files found"'
+                    sh 'ls -lh target/*.jar || echo "No JAR files found"'
+                    
+                    // Show all target contents
+                    sh 'ls -la target/'
+                }
+            }
+        }
+        
+        stage('Package Info') {
+            steps {
+                script {
+                    echo "📋 Creating deployment information..."
+                    
+                    writeFile file: 'deployment-info.txt', text: """
+IGP Grad Project - Deployment Package
+====================================
+Build: #${BUILD_NUMBER}
+Date: ${new Date()}
+Classes: 3 main classes + 1 test class
+Package Type: WAR (Web Application)
+
+Deployment:
+- Deploy WAR file to Tomcat or similar web server
+- Access via: http://localhost:8080/ABCtechnologies
+
+Status: READY ✅
+"""
+                    
+                    echo "📄 Deployment info:"
+                    sh 'cat deployment-info.txt'
+                }
+            }
+        }
+    }
+    
+     post {
+        success {
+            echo "🎉 IGP Package Job completed successfully!"
+        }
+        failure {
+            echo "❌ Packaging failed!"
+        }
+        always {
+            echo "🧹 Pipeline completed - workspace will be cleaned"
+        }
+    }
+}

@@ -1,89 +1,291 @@
 pipeline {
-    agent {
-        label 'master'
+    agent { 
+        label 'master' 
     }
-
+    
     tools {
         maven 'Maven-3.6.3'
         jdk 'OpenJDK-17'
     }
-        
+    
     environment {
-        MAVEN_OPTS = '-Xmx256m -Xms128m'
+        MAVEN_OPTS = '-Xmx512m -Xms256m'
         JOB_NAME = 'IGP-Package-Job'
+        DOCKER_IMAGE = 'abctechnologies-web'
+        DOCKER_TAG = "${BUILD_NUMBER}"
+        CONTAINER_NAME = "abc-container-${BUILD_NUMBER}"
+        WAR_FILE = "ABCtechnologies-1.0.war"
     }
     
     options {
         buildDiscarder(logRotator(numToKeepStr: '5'))
-        timeout(time: 10, unit: 'MINUTES')
+        timeout(time: 15, unit: 'MINUTES')
     }
     
     stages {
         stage('Code Checkout') {
             steps {
                 script {
-                    echo "📦 Starting packaging of IGP project"
+                    echo "📦 Starting enhanced packaging with Docker"
+                    echo "🖥️ Running on: ${env.NODE_NAME}"
                     echo "📥 Checking out code..."
                     git 'https://github.com/MosALs/IGP-Grad-Project.git'
+                    
+                    echo "🔍 Verifying Dockerfile exists..."
+                    sh 'ls -la Dockerfile'
                 }
             }
         }
         
-        stage('Code Packaging') {
+        stage('Maven Package') {
             steps {
                 script {
-                    echo "📦 Creating WAR package from 3 classes..."
+                    echo "📦 Creating WAR package for ABCtechnologies..."
                     
-                    // Create package (skip tests since they ran in previous job)
-                    sh 'mvn package -DskipTests'
+                    // Create WAR package using Java 8
+                    sh 'mvn clean package -DskipTests'
                     
-                    echo "✅ Packaging completed!"
-                    echo "📁 Package created:"
-                    sh 'ls -lh target/*.war || echo "No WAR files found"'
-                    sh 'ls -lh target/*.jar || echo "No JAR files found"'
+                    echo "✅ Maven packaging completed!"
+                    echo "📁 WAR file created:"
+                    sh "ls -lh target/${WAR_FILE}"
                     
-                    // Show all target contents
-                    sh 'ls -la target/'
+                    // Verify specific WAR file exists for Docker build
+                    sh "test -f target/${WAR_FILE} && echo 'WAR file confirmed: ${WAR_FILE}'"
                 }
             }
         }
         
-        stage('Package Info') {
+        stage('Docker Build') {
             steps {
                 script {
-                    echo "📋 Creating deployment information..."
+                    echo "🐳 Building Docker image..."
+                    echo "📋 Image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
                     
-                    writeFile file: 'deployment-info.txt', text: """
-IGP Grad Project - Deployment Package
-====================================
+                    // Build Docker image
+                    sh """
+                        docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                        docker build -t ${DOCKER_IMAGE}:latest .
+                    """
+                    
+                    echo "✅ Docker image built successfully!"
+                    echo "🐳 Docker images:"
+                    sh "docker images | grep ${DOCKER_IMAGE}"
+                }
+            }
+        }
+        
+        stage('Test Docker Image') {
+            steps {
+                script {
+                    echo "🧪 Testing Docker image..."
+                    
+                    // Test run container (detached mode)
+                    sh """
+                        docker run -d --name test-container-${BUILD_NUMBER} \
+                        -p 8081:8080 ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    """
+                    
+                    // Wait for container to start and Tomcat to initialize
+                    echo "⏳ Waiting for Tomcat to start..."
+                    sleep(time: 30, unit: "SECONDS")
+                    
+                    // Test if Tomcat is responding
+                    script {
+                        def containerStatus = sh(
+                            script: "docker ps --filter name=test-container-${BUILD_NUMBER} --format '{{.Status}}'",
+                            returnStdout: true
+                        ).trim()
+                        
+                        echo "📊 Container Status: ${containerStatus}"
+                        
+                        // Check if container is still running
+                        if (containerStatus.contains("Up")) {
+                            echo "✅ Container is running successfully!"
+                            
+                            // Test HTTP response (optional)
+                            def httpTest = sh(
+                                script: "curl -f http://localhost:8081/ >/dev/null 2>&1",
+                                returnStatus: true
+                            )
+                            
+                            if (httpTest == 0) {
+                                echo "✅ HTTP response test passed!"
+                            } else {
+                                echo "⚠️ HTTP test failed, but container is running"
+                            }
+                        } else {
+                            echo "❌ Container status check failed"
+                            // Show container logs for debugging
+                            sh "docker logs test-container-${BUILD_NUMBER} || true"
+                            error("Container failed to start properly")
+                        }
+                    }
+                    
+                    // Clean up test container
+                    sh """
+                        docker stop test-container-${BUILD_NUMBER} || true
+                        docker rm test-container-${BUILD_NUMBER} || true
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy Container') {
+            steps {
+                script {
+                    echo "🚀 Deploying application container..."
+                    
+                    // Stop and remove any existing container
+                    sh """
+                        docker stop ${CONTAINER_NAME} || true
+                        docker rm ${CONTAINER_NAME} || true
+                    """
+                    
+                    // Deploy new container
+                    sh """
+                        docker run -d --name ${CONTAINER_NAME} \
+                        -p 8080:8080 \
+                        --restart unless-stopped \
+                        ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    """
+                    
+                    // Wait for deployment and application startup
+                    echo "⏳ Waiting for ABCtechnologies application to start..."
+                    sleep(time: 45, unit: "SECONDS")
+                    
+                    // Verify deployment
+                    def deployStatus = sh(
+                        script: "docker ps --filter name=${CONTAINER_NAME} --format '{{.Status}}'",
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "🔍 Deployment Status: ${deployStatus}"
+                    
+                    if (deployStatus.contains("Up")) {
+                        echo "✅ ABCtechnologies application deployed successfully!"
+                        echo "🌐 Access at: http://YOUR_EC2_IP:8080"
+                        
+                        // Show application logs
+                        echo "📋 Application startup logs:"
+                        sh "docker logs ${CONTAINER_NAME} --tail 20 || true"
+                    } else {
+                        echo "❌ Deployment verification failed!"
+                        sh "docker logs ${CONTAINER_NAME} || true"
+                        error("Deployment failed!")
+                    }
+                }
+            }
+        }
+        
+        stage('Archive Artifacts') {
+            steps {
+                script {
+                    echo "📦 Archiving build artifacts..."
+                    
+                    // Archive WAR file
+                    archiveArtifacts artifacts: "target/${WAR_FILE}", allowEmptyArchive: true
+                    
+                    // Archive Dockerfile
+                    archiveArtifacts artifacts: 'Dockerfile', allowEmptyArchive: true
+                    
+                    // Save Docker image as tar file
+                    sh "docker save ${DOCKER_IMAGE}:${DOCKER_TAG} -o ${DOCKER_IMAGE}-${DOCKER_TAG}.tar"
+                    archiveArtifacts artifacts: "${DOCKER_IMAGE}-${DOCKER_TAG}.tar", allowEmptyArchive: true
+                    
+                    // Create deployment summary
+                    writeFile file: 'deployment-summary.txt', text: """
+ABCtechnologies Docker Deployment Summary
+=======================================
 Build: #${BUILD_NUMBER}
 Date: ${new Date()}
-Classes: 3 main classes + 1 test class
-Package Type: WAR (Web Application)
+Node: ${env.NODE_NAME}
+
+Application Information:
+- Name: ABCtechnologies (RetailModule)
+- Version: 1.0
+- Java Version: 8
+- Package Type: WAR
+
+Docker Information:
+- Base Image: tomcat:9.0-jre8
+- Application Image: ${DOCKER_IMAGE}:${DOCKER_TAG}
+- Container: ${CONTAINER_NAME}
+- Port: 8080
+- WAR File: ${WAR_FILE}
 
 Deployment:
-- Deploy WAR file to Tomcat or similar web server
-- Access via: http://localhost:8080/ABCtechnologies
+- Status: DEPLOYED ✅
+- Access URL: http://YOUR_EC2_IP:8080
+- WAR location: /usr/local/tomcat/webapps/ROOT.war
+- Health check: Available at /
 
-Status: READY ✅
+Docker Commands:
+- View logs: docker logs ${CONTAINER_NAME}
+- Stop container: docker stop ${CONTAINER_NAME}
+- Remove container: docker rm ${CONTAINER_NAME}
+- View image: docker images | grep ${DOCKER_IMAGE}
+
+Next Steps:
+1. Access application at http://YOUR_EC2_IP:8080
+2. Monitor application: docker logs -f ${CONTAINER_NAME}
+3. Scale if needed: docker run additional containers on different ports
 """
                     
-                    echo "📄 Deployment info:"
-                    sh 'cat deployment-info.txt'
+                    archiveArtifacts artifacts: 'deployment-summary.txt'
+                    echo "✅ All artifacts archived successfully!"
                 }
             }
         }
     }
     
-     post {
+    post {
         success {
-            echo "🎉 IGP Package Job completed successfully!"
+            script {
+                echo """
+🎉 ===============================================
+   ABCTECHNOLOGIES DOCKER DEPLOYMENT - SUCCESS!
+🎉 ===============================================
+✅ WAR file created: target/${WAR_FILE}
+✅ Docker image built: ${DOCKER_IMAGE}:${DOCKER_TAG}
+✅ Container deployed: ${CONTAINER_NAME}
+✅ ABCtechnologies application running on port 8080
+
+🌐 Access your ABCtechnologies application:
+   http://YOUR_EC2_IP:8080
+
+📊 Application Details:
+   - Name: ABCtechnologies (RetailModule)
+   - Version: 1.0
+   - Java: 8
+   - Tomcat: 9.0
+
+🐳 Docker commands:
+   docker ps                          # View running containers
+   docker logs ${CONTAINER_NAME}       # View application logs
+   docker stop ${CONTAINER_NAME}       # Stop container
+   docker exec -it ${CONTAINER_NAME} bash  # Access container shell
+===============================================
+"""
+            }
         }
         failure {
-            echo "❌ Packaging failed!"
+            script {
+                echo "❌ Docker deployment failed!"
+                
+                // Clean up on failure
+                sh """
+                    docker stop ${CONTAINER_NAME} || true
+                    docker rm ${CONTAINER_NAME} || true
+                    docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true
+                """
+            }
         }
         always {
-            echo "🧹 Pipeline completed - workspace will be cleaned"
+            script {
+                // Clean up temporary files
+                sh "rm -f ${DOCKER_IMAGE}-${DOCKER_TAG}.tar || true"
+                cleanWs()
+            }
         }
     }
 }
