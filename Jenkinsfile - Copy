@@ -3,13 +3,13 @@ pipeline {
     
     environment {
         BUILD_TIMESTAMP = "${new Date().format('yyyy-MM-dd-HH-mm-ss')}"
-        PROJECT_NAME = "IGP Grad Project - Containerized Deployment"
-        REPO_URL = "https://github.com/MosALs/IGP-Grad-Project.git"
+        PROJECT_NAME = "IGP Grad Project (3 Classes + 1 Test)"
+	REPO_URL = "https://github.com/MosALs/IGP-Grad-Project.git"
     }
     
     options {
         buildDiscarder(logRotator(numToKeepStr: '5'))
-        timeout(time: 45, unit: 'MINUTES')
+        timeout(time: 30, unit: 'MINUTES')
     }
     
     stages {
@@ -19,18 +19,16 @@ pipeline {
                 script {
                     echo """
 🚀 ==========================================
-   ${PROJECT_NAME}
+   ${PROJECT_NAME} - CI/CD Pipeline
 🚀 ==========================================
 📅 Build: #${BUILD_NUMBER} 
 ⏰ Time: ${BUILD_TIMESTAMP}
-📂 Repo: ${REPO_URL}
-🖥️ Master: ${env.NODE_NAME}
+📂 Repo: https://github.com/MosALs/IGP-Grad-Project.git
 
-📋 Execution Plan:
-1. 🔨 Compile (3 Java classes) → Slave Node
-2. 🧪 Test (1 test class) → Slave Node  
-3. 📦 Package + Docker Deploy → Master Node
-4. 🌐 Containerized Application Ready
+📋 Plan:
+1. 🔨 Compile (3 Java classes) → Slave
+2. 🧪 Test (1 test class) → Slave  
+3. 📦 Package (JAR file) → Master
 ==========================================
 """
                 }
@@ -73,80 +71,54 @@ pipeline {
             }
         }
         
-        stage('Step 3: Package & Deploy') {
+        stage('Step 3: Package') {
             steps {
                 script {
-                    echo "📦 STEP 3: Creating WAR, Docker image, and deploying container"
+                    echo "📦 STEP 3: Creating JAR package on master node"
                     
                     def packageJob = build job: 'IGP-Package-Job',
                                            wait: true,
                                            propagate: true
                     
-                    echo "✅ Package & Deploy Result: ${packageJob.result}"
+                    echo "✅ Packaging Result: ${packageJob.result}"
                     
                     if (packageJob.result != 'SUCCESS') {
-                        error("❌ Package & Deploy failed!")
+                        error("❌ Packaging failed!")
                     }
                 }
             }
         }
         
-        stage('Final Summary') {
+        stage('Pipeline Summary') {
             agent { label 'master' }
             steps {
                 script {
                     echo """
-🎉 ===============================================
-   IGP CONTAINERIZED CI/CD - COMPLETED!
-🎉 ===============================================
+🎉 ==========================================
+   IGP PROJECT CI/CD - COMPLETED!
+🎉 ==========================================
 ✅ Step 1 - Compilation: SUCCESS (3 classes)
 ✅ Step 2 - Testing: SUCCESS (1 test)  
-✅ Step 3 - Package & Deploy: SUCCESS
+✅ Step 3 - Packaging: SUCCESS (JAR ready)
 
-🏗️ Infrastructure:
-   - Master Node: Orchestration, packaging, Docker
-   - Slave Node: Compilation, testing
-
-🐳 Docker Deployment:
-   - WAR file: Created and deployed to Tomcat
-   - Container: Running on port 8080
-   - Image: igp-web-app:${BUILD_NUMBER}
-
-🌐 Access Application:
-   http://YOUR_EC2_MASTER_IP:8080
-
-🎯 Achievement: Full CI/CD with containerization!
-===============================================
+🚀 Your simple project is ready for deployment!
+==========================================
 """
                     
-                    writeFile file: 'docker-pipeline-summary.txt', text: """
-IGP Containerized CI/CD Pipeline Summary
-=======================================
+                    writeFile file: 'pipeline-summary.txt', text: """
+IGP Grad Project Pipeline Summary
+================================
 Build: #${BUILD_NUMBER}
 Time: ${BUILD_TIMESTAMP}
-Repository: ${REPO_URL}
+Project: 3 Java classes + 1 test class
 
-Pipeline Stages:
-✅ Compilation (Slave Node)
-✅ Testing (Slave Node)
-✅ Packaging (Master Node)
-✅ Docker Build (Master Node)
-✅ Container Deployment (Master Node)
+Results:
+✅ Compilation: SUCCESS
+✅ Testing: SUCCESS
+✅ Packaging: SUCCESS
 
-Docker Details:
-- Base Image: tomcat:9.0-jre17
-- Application Image: igp-web-app:${BUILD_NUMBER}
-- Container Port: 8080
-- WAR Deployment: /usr/local/tomcat/webapps/ROOT.war
-
-Access Information:
-- Application URL: http://YOUR_EC2_IP:8080
-- Jenkins URL: http://YOUR_EC2_IP:8080
-
-Status: FULLY DEPLOYED & CONTAINERIZED! 🚀
+Status: DEPLOYMENT READY! 🚀
 """
-                    
-                    archiveArtifacts artifacts: 'docker-pipeline-summary.txt', allowEmptyArchive: true
                 }
             }
         }
@@ -155,14 +127,13 @@ Status: FULLY DEPLOYED & CONTAINERIZED! 🚀
     post {
         success {
             node('master') {
-                echo "🎉 COMPLETE CI/CD WITH DOCKER SUCCESS!"
-                echo "🌐 Your containerized application is live!"
+                echo "🎉 IGP Pipeline SUCCESS! Simple project built and ready!"
+                archiveArtifacts artifacts: 'pipeline-summary.txt', allowEmptyArchive: true
             }
         }
         failure {
             node('master') {
-                echo "❌ CI/CD Pipeline failed!"
-                echo "🔍 Check individual job logs for details"
+                echo "❌ IGP Pipeline FAILED! Check individual job logs."
             }
         }
     }
