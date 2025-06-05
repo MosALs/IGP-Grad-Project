@@ -29,7 +29,7 @@ pipeline {
                     echo "📦 Starting packaging of IGP project"
                     echo "🖥️ Running on: ${env.NODE_NAME}"
                     echo "📥 Checking out code..."
-                    git 'https://github.com/MosALs/IGP-Project-may31.git'
+                    git 'https://github.com/MosALs/IGP-Grad-Project.git'
                     
                     echo "🔍 Verifying Dockerfile exists..."
                     sh 'ls -la Dockerfile'
