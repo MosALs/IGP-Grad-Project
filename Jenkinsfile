@@ -113,7 +113,7 @@ pipeline {
    - Image: igp-web-app:${BUILD_NUMBER}
 
 🌐 Access Application:
-   http://YOUR_EC2_MASTER_IP:8080
+   http://YOUR_EC2_MASTER_IP:8081
 
 🎯 Achievement: Full CI/CD with containerization!
 ===============================================
@@ -140,7 +140,7 @@ Docker Details:
 - WAR Deployment: /usr/local/tomcat/webapps/ROOT.war
 
 Access Information:
-- Application URL: http://YOUR_EC2_IP:8080
+- Application URL: http://YOUR_EC2_IP:8081
 - Jenkins URL: http://YOUR_EC2_IP:8080
 
 Status: FULLY DEPLOYED & CONTAINERIZED! 🚀
