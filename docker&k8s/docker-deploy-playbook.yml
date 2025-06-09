@@ -1,0 +1,52 @@
+---
+- name: Deploy ABCtechnologies Application with Docker
+  hosts: docker_hosts
+  gather_facts: yes
+  become: no
+  
+  vars:
+    timestamp: "{{ ansible_date_time.date }}-{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}"
+  
+  pre_tasks:
+    - name: Display deployment information
+      debug:
+        msg: |
+          Starting Docker deployment
+          Timestamp: {{ timestamp }}
+          Target: {{ inventory_hostname }}
+          Application: ABCtechnologies
+  
+  roles:
+    - docker-app
+  
+  post_tasks:
+    - name: Display deployment summary
+      debug:
+        msg: |
+          ============================================
+          Docker Deployment Completed Successfully!
+          ============================================
+          Application: ABCtechnologies
+          Container: abctechnologies-app
+          Access URL: http://localhost:8082
+          Image: abctechnologies-web:latest
+          Status: DEPLOYED ✅
+    
+    - name: Create deployment log
+      copy:
+        content: |
+          ABCtechnologies Docker Deployment Log
+          ====================================
+          Deployment Time: {{ timestamp }}
+          Ansible User: {{ ansible_user }}
+          Docker Image: abctechnologies-web:latest
+          Container Name: abctechnologies-app
+          Host Port: 8082
+          Container Port: 8080
+          Status: SUCCESS
+          Access: http://localhost:8082
+        dest: /tmp/docker-deployment-{{ timestamp }}.log
+      
+    - name: Show deployment log location
+      debug:
+        msg: "Deployment log saved to: /tmp/docker-deployment-{{ timestamp }}.log"

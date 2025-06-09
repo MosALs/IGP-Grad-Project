@@ -1,0 +1,147 @@
+---
+- name: Ensure kubectl is available
+  shell: kubectl version --client
+  register: kubectl_check
+  
+- name: Display kubectl version
+  debug:
+    var: kubectl_check.stdout
+
+- name: Check Kubernetes cluster status
+  k8s_info:
+    api_version: v1
+    kind: Node
+  register: cluster_nodes
+
+- name: Display cluster information
+  debug:
+    msg: "Kubernetes cluster has {{ cluster_nodes.resources | length }} node(s)"
+
+- name: Create namespace
+  k8s:
+    name: "{{ k8s_namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: present
+
+- name: Apply ConfigMap
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{ app_name }}-config"
+        namespace: "{{ k8s_namespace }}"
+      data:
+        application.properties: |
+          server.port=8080
+          logging.level.root=INFO
+          app.name={{ app_name }}
+          app.version={{ app_version }}
+
+- name: Deploy application to Kubernetes
+  k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ app_name }}-deployment"
+        namespace: "{{ k8s_namespace }}"
+        labels:
+          app: "{{ app_name }}"
+      spec:
+        replicas: "{{ replicas }}"
+        selector:
+          matchLabels:
+            app: "{{ app_name }}"
+        template:
+          metadata:
+            labels:
+              app: "{{ app_name }}"
+          spec:
+            containers:
+            - name: "{{ app_name }}"
+              image: "{{ docker_image_name }}:{{ docker_image_tag }}"
+              imagePullPolicy: Never
+              ports:
+              - containerPort: 8080
+              env:
+              - name: JAVA_OPTS
+                value: "{{ java_opts }}"
+              resources:
+                requests:
+                  memory: "{{ k8s_memory_request }}"
+                  cpu: "{{ k8s_cpu_request }}"
+                limits:
+                  memory: "{{ k8s_memory_limit }}"
+                  cpu: "{{ k8s_cpu_limit }}"
+
+- name: Create service
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ app_name }}-service"
+        namespace: "{{ k8s_namespace }}"
+        labels:
+          app: "{{ app_name }}"
+      spec:
+        type: NodePort
+        ports:
+        - port: 8080
+          targetPort: 8080
+          nodePort: "{{ k8s_nodeport }}"
+          protocol: TCP
+        selector:
+          app: "{{ app_name }}"
+
+- name: Wait for deployment to be ready
+  k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ app_name }}-deployment"
+    namespace: "{{ k8s_namespace }}"
+    wait: true
+    wait_condition:
+      type: Progressing
+      status: "True"
+      reason: NewReplicaSetAvailable
+    wait_timeout: 300
+
+- name: Get service information
+  k8s_info:
+    api_version: v1
+    kind: Service
+    name: "{{ app_name }}-service"
+    namespace: "{{ k8s_namespace }}"
+  register: service_info
+
+- name: Display service details
+  debug:
+    msg: |
+      Service created successfully!
+      Name: {{ app_name }}-service
+      Namespace: {{ k8s_namespace }}
+      NodePort: {{ k8s_nodeport }}
+      Access URL: http://localhost:{{ k8s_nodeport }}
+
+- name: Get pod information
+  k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ k8s_namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+  register: pod_info
+
+- name: Display pod status
+  debug:
+    msg: |
+      Pods running: {{ pod_info.resources | length }}
+      {% for pod in pod_info.resources %}
+      - {{ pod.metadata.name }}: {{ pod.status.phase }}
+      {% endfor %}

@@ -1,0 +1,17 @@
+---
+# Application variables
+app_source_dir: "/home/{{ ansible_user }}/ansible-k8s-project"
+war_file_name: "ABCtechnologies-1.0.war"
+
+# Docker variables
+docker_image_name: "abctechnologies-web"
+docker_image_tag: "ansible-{{ ansible_date_time.epoch }}"
+container_name: "abctechnologies-app"
+
+# Port configuration
+host_port: 8082
+container_port: 8080
+
+# Resource limits
+container_memory: "512m"
+java_opts: "-Xmx400m -Xms200m -Djava.awt.headless=true"

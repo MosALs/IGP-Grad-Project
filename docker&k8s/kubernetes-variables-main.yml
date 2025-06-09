@@ -1,0 +1,22 @@
+---
+# Application configuration
+app_name: "abctechnologies"
+app_version: "1.0"
+k8s_namespace: "abctechnologies"
+
+# Docker image (should match docker role)
+docker_image_name: "abctechnologies-web"
+docker_image_tag: "latest"
+
+# Kubernetes configuration
+replicas: 2
+k8s_nodeport: 30080
+
+# Resource configuration
+k8s_memory_request: "256Mi"
+k8s_cpu_request: "250m"
+k8s_memory_limit: "512Mi"
+k8s_cpu_limit: "500m"
+
+# Java configuration
+java_opts: "-Xmx400m -Xms200m -Djava.awt.headless=true"

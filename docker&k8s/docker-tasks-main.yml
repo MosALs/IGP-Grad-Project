@@ -1,0 +1,97 @@
+---
+- name: Ensure Docker is running
+  service:
+    name: docker
+    state: started
+  become: yes
+  ignore_errors: yes
+
+- name: Remove old containers
+  docker_container:
+    name: "{{ item }}"
+    state: absent
+    force_kill: yes
+  loop:
+    - abctechnologies-app
+    - abc-container-old
+  ignore_errors: yes
+
+- name: Remove old images
+  docker_image:
+    name: "{{ docker_image_name }}"
+    tag: "{{ item }}"
+    state: absent
+    force_absent: yes
+  loop:
+    - old
+    - previous
+  ignore_errors: yes
+
+- name: Build Maven WAR file
+  shell: |
+    cd {{ app_source_dir }}
+    mvn clean package -DskipTests
+  register: maven_build
+
+- name: Display Maven build output
+  debug:
+    var: maven_build.stdout_lines
+
+- name: Verify WAR file exists
+  stat:
+    path: "{{ app_source_dir }}/target/{{ war_file_name }}"
+  register: war_file_check
+
+- name: Fail if WAR file not created
+  fail:
+    msg: "WAR file not found: {{ war_file_name }}"
+  when: not war_file_check.stat.exists
+
+- name: Build Docker image
+  docker_image:
+    name: "{{ docker_image_name }}"
+    tag: "{{ docker_image_tag }}"
+    build:
+      path: "{{ app_source_dir }}"
+      dockerfile: "{{ app_source_dir }}/Dockerfile"
+      pull: no
+    source: build
+    state: present
+  register: docker_build
+
+- name: Display Docker build info
+  debug:
+    msg: "Docker image built: {{ docker_image_name }}:{{ docker_image_tag }}"
+
+- name: Create and start Docker container
+  docker_container:
+    name: "{{ container_name }}"
+    image: "{{ docker_image_name }}:{{ docker_image_tag }}"
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - "{{ host_port }}:{{ container_port }}"
+    memory: "{{ container_memory }}"
+    env:
+      JAVA_OPTS: "{{ java_opts }}"
+  register: container_result
+
+- name: Wait for application to start
+  wait_for:
+    port: "{{ host_port }}"
+    host: localhost
+    delay: 10
+    timeout: 60
+
+- name: Test application accessibility
+  uri:
+    url: "http://localhost:{{ host_port }}"
+    method: GET
+    timeout: 10
+  register: app_test
+  retries: 3
+  delay: 10
+
+- name: Display container status
+  debug:
+    msg: "Container {{ container_name }} is running on port {{ host_port }}"

@@ -1,0 +1,49 @@
+piVersion: apps/v1
+kind: Deployment
+metadata:
+  name: abctechnologies-deployment
+  namespace: abctechnologies
+  labels:
+    app: abctechnologies
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: abctechnologies
+  template:
+    metadata:
+      labels:
+        app: abctechnologies
+        version: v1
+    spec:
+      containers:
+      - name: abctechnologies
+        image: abctechnologies-web:latest
+        imagePullPolicy: Never  # Use local image
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: JAVA_OPTS
+          value: "-Xmx400m -Xms200m"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      restartPolicy: Always
